@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Inkunzi Wealth Group</title>
+<style>
+body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; padding:0; background:#f4f6f8; }
+.container { padding:20px; max-width:480px; margin:0 auto; }
+h1 { text-align:center; color:#4f46e5; margin-bottom:20px; }
+/* Balance Section */
+.balance-card { background:#fff; border-radius:15px; padding:15px; margin-bottom:20px; box-shadow:0 4px 15px rgba(0,0,0,0.1); text-align:center; }
+.balance-card p { margin:8px 0; font-size:16px; color:#333; }
+.balance-card .amount { font-weight:bold; font-size:20px; color:#4f46e5; }
+/* Investment Plans Section */
+.plans-container { display:flex; overflow-x:auto; gap:15px; padding-bottom:10px; margin-bottom:30px; }
+.plan { min-width:220px; background:#fff; border-radius:15px; padding:20px; box-shadow:0 4px 15px rgba(0,0,0,0.1); cursor:pointer; transition: transform 0.2s, box-shadow 0.2s; flex-shrink:0; }
+.plan:hover { transform: scale(1.03); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+.plan h2 { margin:0 0 10px 0; color:#4f46e5; font-size:20px; }
+.plan p { margin:0 0 8px 0; font-size:14px; color:#555; }
+.expected-return { margin-top:10px; padding:8px; border-radius:8px; background:#e0e7ff; font-weight:bold; text-align:center; color:#4f46e5; }
+/* Investments / History section */
+.investments-section { margin-bottom:30px; }
+.investment-card { background:#fff; border-radius:15px; padding:15px; margin-bottom:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); position:relative; }
+.investment-card p { margin:5px 0; font-size:14px; color:#333; }
+.status { font-weight:bold; }
+.pending { color:#f59e0b; }
+.verified { color:#059669; }
+.countdown { font-weight:bold; color:#1d4ed8; margin-top:5px; }
+.withdraw-btn, .delete-btn { margin-top:8px; padding:6px 12px; border:none; border-radius:8px; cursor:pointer; transition: transform 0.2s; }
+.withdraw-btn { background:#059669; color:#fff; }
+.withdraw-btn:hover { transform: scale(1.05); }
+.delete-btn { background:#e11d48; color:#fff; margin-left:8px; }
+.delete-btn:hover { transform: scale(1.05); }
+.profile-btn { position:fixed; bottom:25px; right:25px; width:60px; height:60px; background:#4f46e5; border-radius:50%; border:none; color:#fff; font-size:24px; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.2); transition:transform 0.2s, background 0.3s; }
+.profile-btn:hover { transform:scale(1.1); background:#6366f1; }
+/* Notification */
+.notification { position:fixed; top:20px; right:20px; background:#059669; color:#fff; padding:12px 18px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.2); opacity:0; transition:opacity 0.5s; }
+.notification.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>Dashboard</h1>
+
+<!-- Balance Section -->
+<div class="balance-card" id="balanceCard">
+  <p>Total Invested: R<span id="totalInvested" class="amount">0</span></p>
+  <p>Active Investments: R<span id="activeInvestments" class="amount">0</span></p>
+  <p>Available Balance: R<span id="availableBalance" class="amount">0</span></p>
+</div>
+
+<!-- Investment Plans -->
+<div class="plans-section">
+<h2>Investment Plans</h2>
+<div class="plans-container" id="plansContainer"></div>
+</div>
+
+<!-- Investment History -->
+<div class="investments-section">
+<h2>Investment History</h2>
+<div id="investmentsContainer"></div>
+</div>
+
+</div>
+<button class="profile-btn" onclick="window.location.href='profile.html'">👤</button>
+<div id="notification" class="notification"></div>
+
+<script>
+// Load user
+const user = JSON.parse(localStorage.getItem('inkunziUser'));
+if(!user){ alert("User not found. Redirecting to signup."); window.location.href="signup.html"; }
+
+// Plan durations in ms
+const planDurations = { 
+  'Quick Gain':1*60*1000, 
+  'Short-Term':4*60*60*1000, 
+  'Medium-Term':8*60*60*1000, 
+  'Long-Term':24*60*60*1000, 
+  'Premium':2*24*60*60*1000, 
+  'VIP':3*24*60*60*1000 
+};
+
+// Transactions
+let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+
+// Notification
+function showNotification(message){
+  const notif = document.getElementById('notification');
+  notif.innerText = message;
+  notif.classList.add('show');
+  setTimeout(()=>{ notif.classList.remove('show'); },4000);
+}
+
+// Calculate balances
+function calculateBalances(){
+  let totalInvested=0, activeInvestments=0, availableBalance=0;
+  transactions.forEach(tx=>{
+    if(tx.type==='Deposit'){
+      totalInvested += tx.amount;
+      if(tx.verified && !tx.withdrawn){
+        if(tx.maturedTime && tx.paid) availableBalance += tx.amount*(tx.profitMultiplier||1);
+        else activeInvestments += tx.amount;
+      } else if(!tx.verified) activeInvestments += tx.amount;
+      else if(tx.withdrawn) availableBalance += tx.amount*(tx.profitMultiplier||1);
+    }
+  });
+  document.getElementById('totalInvested').innerText = totalInvested.toFixed(2);
+  document.getElementById('activeInvestments').innerText = activeInvestments.toFixed(2);
+  document.getElementById('availableBalance').innerText = availableBalance.toFixed(2);
+}
+
+// Load dashboard
+function loadDashboard(){
+  calculateBalances();
+  const container = document.getElementById('investmentsContainer');
+  container.innerHTML = '';
+
+  transactions.forEach((tx,index)=>{
+    const card = document.createElement('div');
+    card.classList.add('investment-card');
+
+    const expectedProfit = (tx.amount*(tx.profitMultiplier||1)).toFixed(2);
+
+    let countdownText='';
+    if(tx.verified && !tx.withdrawn && !tx.paid){
+      if(!tx.maturedTime){
+        const duration = planDurations[tx.plan] || 0;
+        tx.maturedTime = new Date(new Date(tx.date).getTime() + duration).getTime();
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+      }
+      countdownText = `<p class="countdown" id="countdown-${index}"></p>`;
+    }
+
+    card.innerHTML = `
+      <p><strong>Plan:</strong> ${tx.plan}</p>
+      <p><strong>Amount:</strong> R${tx.amount}</p>
+      <p><strong>Expected Profit:</strong> R${expectedProfit}</p>
+      <p class="status ${tx.verified?'verified':'pending'}">${tx.paid?'Paid':tx.verified?'Verified':'Pending Verification'}</p>
+      ${countdownText}
+    `;
+    container.appendChild(card);
+
+    if(tx.verified && !tx.withdrawn && tx.paid){
+      const withdrawBtn = document.createElement('button');
+      withdrawBtn.innerText='Withdraw';
+      withdrawBtn.classList.add('withdraw-btn');
+      withdrawBtn.addEventListener('click',()=>{
+        tx.withdrawn=true;
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+        loadDashboard();
+      });
+      card.appendChild(withdrawBtn);
+    }
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.innerText='Delete';
+    deleteBtn.classList.add('delete-btn');
+    deleteBtn.addEventListener('click',()=>{
+      if(confirm("Are you sure you want to delete this investment history?")){
+        transactions.splice(transactions.indexOf(tx),1);
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+        loadDashboard();
+      }
+    });
+    card.appendChild(deleteBtn);
+  });
+
+  // Countdown timers & notify admin
+  transactions.forEach((tx,index)=>{
+    if(tx.verified && !tx.withdrawn && !tx.paid && tx.maturedTime){
+      const countdownEl = document.getElementById(`countdown-${index}`);
+      if(countdownEl){
+        const interval = setInterval(()=>{
+          const now = new Date().getTime();
+          let distance = tx.maturedTime - now;
+          if(distance <=0){
+            countdownEl.innerText="Investment completed! Waiting admin payment.";
+            clearInterval(interval);
+
+            // Notify admin dashboard
+            if(!tx.readyForAdmin){
+              tx.readyForAdmin = true;
+              localStorage.setItem('transactions', JSON.stringify(transactions));
+            }
+
+            loadDashboard();
+          } else {
+            const minutes = Math.floor((distance % (1000*60*60))/ (1000*60));
+            const seconds = Math.floor((distance % (1000*60))/1000);
+            countdownEl.innerText=`Time remaining: ${minutes}m ${seconds}s`;
+          }
+        },1000);
+      }
+    }
+  });
+}
+
+loadDashboard();
+
+// Investment Plans
+const plans = [
+  { name:'Quick Gain', duration:'1 minute', minAmount:100, multiplier:1.1 },
+  { name:'Short-Term', duration:'4 hours', minAmount:500, multiplier:1.5 },
+  { name:'Medium-Term', duration:'8 hours', minAmount:1000, multiplier:2.0 },
+  { name:'Long-Term', duration:'1 day', minAmount:1500, multiplier:2.5 },
+  { name:'Premium', duration:'2 days', minAmount:2000, multiplier:3.0 },
+  { name:'VIP', duration:'3 days', minAmount:5000, multiplier:4.0 }
+];
+
+const plansContainer = document.getElementById('plansContainer');
+plans.forEach(plan=>{
+  const expectedProfit = plan.minAmount*plan.multiplier;
+  const div=document.createElement('div');
+  div.classList.add('plan');
+  div.innerHTML=`<h2>${plan.name}</h2>
+                 <p>Duration: ${plan.duration}</p>
+                 <p>Minimum: R${plan.minAmount}</p>
+                 <div class="expected-return">Expected Profit: R${expectedProfit.toFixed(2)}</div>`;
+
+  // Redirect to payment page
+  div.addEventListener('click',()=>{
+    localStorage.setItem('selectedPlan', JSON.stringify({
+      ...plan,
+      date: new Date().toISOString(),
+      type:'Deposit',
+      profitMultiplier:plan.multiplier,
+      code: Math.random().toString(36).substring(2,8).toUpperCase()
+    }));
+    window.location.href="investment_payment.html";
+  });
+
+  plansContainer.appendChild(div);
+});
+
+// Sync with admin payments
+setInterval(()=>{
+  let updated=false;
+  transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+  transactions.forEach(tx=>{
+    if(tx.paid && !tx.withdrawn && tx.verified && !tx.notified){
+      tx.notified=true;
+      showNotification(`Your investment ${tx.plan} has been paid and is ready to withdraw!`);
+      updated=true;
+    }
+  });
+  if(updated){
+    localStorage.setItem('transactions', JSON.stringify(transactions));
+    loadDashboard();
+  }
+},2000);
+</script>
+</body>
+</html>

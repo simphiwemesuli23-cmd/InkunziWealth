@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard - Inkunzi Wealth Group</title>
+
+<style>
+body{
+  font-family:'Segoe UI',sans-serif;
+  background:#f3f4f6;
+  margin:0;
+  padding:15px;
+}
+
+/* ===== HEADER ===== */
+h1{
+  text-align:center;
+  color:#4f46e5;
+  margin-bottom:10px;
+}
+
+/* ===== STATS ===== */
+.stats{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+  margin-bottom:15px;
+}
+
+.stat{
+  background:#fff;
+  padding:12px;
+  border-radius:12px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.08);
+}
+
+.stat h3{
+  margin:0;
+  font-size:13px;
+  color:#6b7280;
+}
+
+.stat p{
+  margin:5px 0 0;
+  font-size:20px;
+  font-weight:bold;
+}
+
+/* ===== SEARCH ===== */
+.search-box{
+  margin-bottom:15px;
+}
+
+.search-box input{
+  width:100%;
+  padding:12px;
+  border-radius:10px;
+  border:1px solid #ccc;
+  font-size:15px;
+}
+
+/* ===== CARDS ===== */
+.investment-card{
+  background:#fff;
+  border-radius:15px;
+  padding:15px;
+  margin-bottom:12px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.1);
+}
+
+.investment-card p{
+  margin:4px 0;
+  font-size:14px;
+}
+
+/* ===== BADGES ===== */
+.badge{
+  display:inline-block;
+  padding:6px 12px;
+  border-radius:8px;
+  font-size:12px;
+  color:#fff;
+  font-weight:bold;
+  margin-top:6px;
+}
+
+.pending{background:#f59e0b;}
+.verified{background:#2563eb;}
+.ready{background:#9333ea;}
+.paid{background:#059669;}
+
+/* ===== BUTTONS ===== */
+.btn{
+  padding:7px 14px;
+  border:none;
+  border-radius:8px;
+  font-size:14px;
+  color:#fff;
+  cursor:pointer;
+  margin-top:8px;
+  margin-right:6px;
+}
+
+.verify-btn{background:#2563eb;}
+.pay-btn{background:#059669;}
+
+/* ===== NOTIFICATION ===== */
+.notification{
+  position:fixed;
+  top:15px;
+  right:15px;
+  background:#111827;
+  color:#fff;
+  padding:14px;
+  border-radius:10px;
+  font-size:14px;
+  opacity:0;
+  transform:translateY(-10px);
+  transition:0.4s;
+  z-index:1000;
+}
+
+.notification.show{
+  opacity:1;
+  transform:translateY(0);
+}
+</style>
+</head>
+
+<body>
+
+<h1>Admin Dashboard</h1>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat"><h3>Total Investments</h3><p id="totalInvestments">0</p></div>
+  <div class="stat"><h3>Pending Verification</h3><p id="pendingCount">0</p></div>
+  <div class="stat"><h3>Ready For Payment</h3><p id="readyCount">0</p></div>
+  <div class="stat"><h3>Paid Investments</h3><p id="paidCount">0</p></div>
+  <div class="stat"><h3>Total Invested</h3><p id="totalAmount">R0</p></div>
+  <div class="stat"><h3>Total Paid</h3><p id="totalPaid">R0</p></div>
+</div>
+
+<!-- SEARCH -->
+<div class="search-box">
+  <input type="text" id="searchCode" placeholder="Search by user code">
+</div>
+
+<!-- INVESTMENTS -->
+<div id="investmentsContainer"></div>
+
+<!-- NOTIFICATION -->
+<div id="notification" class="notification"></div>
+
+<script>
+let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+let lastCount = transactions.length;
+
+function notify(msg){
+  const n=document.getElementById('notification');
+  n.innerText=msg;
+  n.classList.add('show');
+  setTimeout(()=>n.classList.remove('show'),3000);
+}
+
+function updateStats(){
+  let total=transactions.length;
+  let pending=0,ready=0,paid=0;
+  let invested=0,paidAmount=0;
+
+  transactions.forEach(tx=>{
+    invested+=tx.amount;
+    if(!tx.verified) pending++;
+    else if(tx.verified && tx.readyForAdmin && !tx.paid) ready++;
+    else if(tx.paid){paid++; paidAmount+=tx.amount;}
+  });
+
+  totalInvestments.innerText=total;
+  pendingCount.innerText=pending;
+  readyCount.innerText=ready;
+  paidCount.innerText=paid;
+  totalAmount.innerText="R"+invested;
+  totalPaid.innerText="R"+paidAmount;
+}
+
+function loadDashboard(){
+  const container=document.getElementById('investmentsContainer');
+  container.innerHTML='';
+  const filter=document.getElementById('searchCode').value.toUpperCase();
+
+  transactions.forEach((tx,i)=>{
+    if(filter && tx.code.toUpperCase()!==filter) return;
+
+    const card=document.createElement('div');
+    card.className='investment-card';
+    card.innerHTML=`
+      <p><b>User Code:</b> ${tx.code}</p>
+      <p><b>Plan:</b> ${tx.plan}</p>
+      <p><b>Amount:</b> R${tx.amount}</p>
+      <p><b>Date:</b> ${new Date(tx.date).toLocaleString()}</p>
+    `;
+
+    let badge=document.createElement('span');
+    badge.className='badge';
+
+    if(!tx.verified){
+      badge.classList.add('pending');
+      badge.innerText='Pending Verification';
+
+      let btn=document.createElement('button');
+      btn.className='btn verify-btn';
+      btn.innerText='Verify';
+      btn.onclick=()=>{
+        tx.verified=true;
+        localStorage.setItem('transactions',JSON.stringify(transactions));
+        notify('Investment verified');
+        loadDashboard();
+      };
+      card.appendChild(btn);
+    }
+    else if(tx.verified && !tx.paid){
+      if(tx.readyForAdmin){
+        badge.classList.add('ready');
+        badge.innerText='Ready for Payment';
+
+        let btn=document.createElement('button');
+        btn.className='btn pay-btn';
+        btn.innerText='Pay';
+        btn.onclick=()=>{
+          tx.paid=true;
+          localStorage.setItem('transactions',JSON.stringify(transactions));
+          notify('Investment paid successfully');
+          loadDashboard();
+        };
+        card.appendChild(btn);
+      }else{
+        badge.classList.add('verified');
+        badge.innerText='Verified';
+      }
+    }
+    else{
+      badge.classList.add('paid');
+      badge.innerText='Paid';
+    }
+
+    card.appendChild(badge);
+    container.appendChild(card);
+  });
+
+  updateStats();
+}
+
+setInterval(()=>{
+  transactions=JSON.parse(localStorage.getItem('transactions'))||[];
+  if(transactions.length>lastCount){
+    notify('New investment received');
+    lastCount=transactions.length;
+  }
+  loadDashboard();
+},2000);
+
+document.getElementById('searchCode').addEventListener('input',loadDashboard);
+loadDashboard();
+</script>
+
+</body>
+</html>

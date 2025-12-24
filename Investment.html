@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Investment Plans - Inkunzi Wealth Group</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f8; margin: 0; padding: 20px; }
+  h1 { text-align: center; color: #4f46e5; margin-bottom: 25px; }
+  .plans-container { display: flex; overflow-x: auto; gap: 15px; padding-bottom: 10px; }
+  .plan { min-width: 220px; background: #fff; border-radius: 15px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; flex-shrink: 0; }
+  .plan:hover { transform: scale(1.03); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+  .plan h2 { margin: 0 0 10px 0; color: #4f46e5; font-size: 20px; }
+  .plan p { margin: 0 0 8px 0; font-size: 14px; color: #555; }
+  .expected-return { margin-top: 10px; padding: 8px; border-radius: 8px; background: #e0e7ff; font-weight: bold; text-align: center; color: #4f46e5; }
+
+  /* Payment section */
+  .payment-section { margin-top: 25px; background: #fff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: none; }
+  .payment-section h2 { color: #4f46e5; margin-bottom: 15px; text-align: center; }
+  .payment-section p { margin: 8px 0; font-size: 15px; color: #333; }
+  .highlight { font-weight: bold; color: #059669; }
+  .done-btn { margin-top: 15px; padding: 12px 20px; background: #4f46e5; color: #fff; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; transition: transform 0.2s, background 0.3s; }
+  .done-btn:hover { background: #6366f1; transform: scale(1.05); }
+  .waiting { margin-top: 15px; font-weight: bold; color: #e11d48; display: none; }
+</style>
+</head>
+<body>
+
+<h1>Investment Plans</h1>
+<div class="plans-container" id="plansContainer"></div>
+
+<div class="payment-section" id="paymentSection">
+  <h2>Payment Details</h2>
+  <p>Plan: <span id="planName" class="highlight"></span></p>
+  <p>Amount: R<span id="depositAmount" class="highlight"></span></p>
+  <p>Expected Profit: R<span id="expectedProfit" class="highlight"></span></p>
+  <h3>Bank Details</h3>
+  <p>Bank: Capitec</p>
+  <p>Branch Code: 470010 (Melmoth)</p>
+  <p>Card Holder: Mr SM Ndebele</p>
+  <p>Account No: 2022710070</p>
+  <p>Payment Code: <span id="paymentCode" class="highlight"></span></p>
+  <button class="done-btn" id="doneBtn">Done</button>
+  <p class="waiting" id="waitingText">Waiting for admin verification...</p>
+</div>
+
+<script>
+const plans = [
+  { name: 'Short-Term', duration: '4 hours', minAmount: 500, multiplier: 1.5 },
+  { name: 'Medium-Term', duration: '8 hours', minAmount: 1000, multiplier: 2.0 },
+  { name: 'Long-Term', duration: '1 day', minAmount: 1500, multiplier: 2.5 },
+  { name: 'Premium', duration: '2 days', minAmount: 2000, multiplier: 3.0 },
+  { name: 'VIP', duration: '3 days', minAmount: 5000, multiplier: 4.0 }
+];
+
+const container = document.getElementById('plansContainer');
+const paymentSection = document.getElementById('paymentSection');
+const planNameEl = document.getElementById('planName');
+const depositAmountEl = document.getElementById('depositAmount');
+const expectedProfitEl = document.getElementById('expectedProfit');
+const paymentCodeEl = document.getElementById('paymentCode');
+const doneBtn = document.getElementById('doneBtn');
+const waitingText = document.getElementById('waitingText');
+
+plans.forEach(plan => {
+  const expectedProfit = plan.minAmount * plan.multiplier;
+  const div = document.createElement('div');
+  div.classList.add('plan');
+  div.innerHTML = `
+    <h2>${plan.name}</h2>
+    <p>Duration: ${plan.duration}</p>
+    <p>Minimum: R${plan.minAmount}</p>
+    <div class="expected-return">Expected Profit: R${expectedProfit.toFixed(2)}</div>
+  `;
+
+  div.addEventListener('click', () => {
+    const user = JSON.parse(localStorage.getItem('inkunziUser'));
+    if(!user){
+      alert("Please signup first!");
+      window.location.href = "signup.html";
+      return;
+    }
+
+    let amount = prompt(`Enter amount to invest in ${plan.name} (Minimum R${plan.minAmount}):`);
+    amount = parseFloat(amount);
+    if(isNaN(amount) || amount < plan.minAmount){
+      alert(`Invalid amount! Minimum is R${plan.minAmount}.`);
+      return;
+    }
+
+    // Store selected plan + amount
+    const selectedPlan = {...plan, amount};
+    localStorage.setItem('selectedPlan', JSON.stringify(selectedPlan));
+
+    // Show payment section
+    planNameEl.innerText = selectedPlan.name;
+    depositAmountEl.innerText = selectedPlan.amount;
+    expectedProfitEl.innerText = (selectedPlan.amount * selectedPlan.multiplier).toFixed(2);
+    const paymentCode = 'INK' + Math.floor(Math.random()*1000000);
+    localStorage.setItem('currentPaymentCode', paymentCode);
+    paymentCodeEl.innerText = paymentCode;
+
+    paymentSection.style.display = 'block';
+    waitingText.style.display = 'none';
+  });
+
+  container.appendChild(div);
+});
+
+// Done button
+doneBtn.addEventListener('click', () => {
+  const selectedPlan = JSON.parse(localStorage.getItem('selectedPlan'));
+  const paymentCode = localStorage.getItem('currentPaymentCode');
+
+  // Open WhatsApp
+  const phone = '+27726757314';
+  const message = `Hello, I have made payment for ${selectedPlan.name}. My code is ${paymentCode}. Amount: R${selectedPlan.amount}`;
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+
+  waitingText.style.display = 'block';
+
+  // Poll for admin verification
+  const interval = setInterval(() => {
+    const verified = localStorage.getItem('paymentVerified');
+    if(verified === 'true'){
+      clearInterval(interval);
+
+      // Save deposit transaction
+      const transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+      transactions.push({
+        type: 'Deposit',
+        amount: selectedPlan.amount,
+        date: new Date().toISOString(),
+        plan: selectedPlan.name,
+        profitMultiplier: selectedPlan.multiplier,
+        code: paymentCode,
+        verified: true
+      });
+      localStorage.setItem('transactions', JSON.stringify(transactions));
+
+      // Clean up
+      localStorage.removeItem('paymentVerified');
+      localStorage.removeItem('currentPaymentCode');
+      localStorage.removeItem('selectedPlan');
+
+      alert("Payment verified! Redirecting to dashboard...");
+      window.location.href = "dashboard.html";
+    }
+  }, 3000);
+});
+</script>
+</body>
+</html>
